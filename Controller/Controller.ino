@@ -1,7 +1,7 @@
 #include <SPI.h>
 #include <nRF24L01.h>  //part of the RF24 library
 #include <RF24.h>
-//FUCK TEST
+
 // Define NRF24L01 radio object with CE and CSN pins
 RF24 radio(7, 8);  // CE = 7, CSN = 8
 
