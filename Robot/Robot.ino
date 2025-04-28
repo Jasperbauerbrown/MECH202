@@ -32,10 +32,15 @@ const int radioCheckPeriod = 50;
 int lastRec = 0;
 
 CRGB leds[NUM_LEDS];
-int lastLEDUpdate = 0;
+long lastLEDUpdate = 0;
 int ledIndex = 2;
 int colorIndex = 0;
 bool cyclon = false;
+long lastPoliceChangeTime = 0;
+long lastPoliceUpdate = 0;
+int speedL = 0, speedR = 0;
+int adaptiveIndexL = 0, adaptiveIndexR = 0;
+int lastLEDUpdateL = 0, lastLEDUpdateR = 0;
 
 DEFINE_GRADIENT_PALETTE(colors_gp){
   0, 255, 0, 0,    //black
@@ -108,10 +113,13 @@ void loop() {
         analogWrite(LiftDownPin, 0);
       }
       updateLEDs(controls.ledMode);
+      speedL = controls.driveLeft;
+      speedR = controls.driveRight;
     }
   }
-  movingLEDRough();
-  movingLED();
+  adaptiveLED();
+  movingRoundLED();
+  movingSymLED();
   pallet();
   rannd();
 }
@@ -125,21 +133,17 @@ void updateLEDs(int newMode) {
       leds[i] = CRGB::Black;
     }
   } else if (ledMode == 1) {
-    leds[0] = CRGB::White;
-    leds[NUM_LEDS - 1] = CRGB::White;
-    for (int i = 1; i < (NUM_LEDS - 1); i++) {
-      leds[i] = CRGB(255, 70, 0);
-    }
+    leds[0] = CRGB(255, 255, 255);
+    leds[NUM_LEDS - 1] = CRGB(255, 255, 255);
+    colorIndex = 0;
   } else if (ledMode == 2) {
-    leds[0] = CRGB(200, 200, 200);
-    leds[NUM_LEDS - 1] = CRGB(200, 200, 200);
+    leds[0] = CRGB(255, 255, 255);
+    leds[NUM_LEDS - 1] = CRGB(255, 255, 255);
     leds[1] = CRGB(0, 255, 0);
     leds[NUM_LEDS - 2] = CRGB(0, 255, 0);
     leds[2] = CRGB(255, 255, 255);
     leds[NUM_LEDS - 3] = CRGB(255, 255, 255);
-    leds[3] = CRGB(255, 255, 255);
-    leds[NUM_LEDS - 4] = CRGB(255, 255, 255);
-    for (int i = 4; i < (NUM_LEDS - 4); i++) {
+    for (int i = 3; i < (NUM_LEDS - 3); i++) {
       leds[i] = CRGB(255, 70, 0);
     }
     leds[10] = CRGB(255, 0, 0);
@@ -149,30 +153,66 @@ void updateLEDs(int newMode) {
     leds[NUM_LEDS - 1] = CRGB(255, 0, 0);
     leds[1] = CRGB(255, 0, 0);
     leds[NUM_LEDS - 2] = CRGB(255, 0, 0);
+  } else if (ledMode == 4) {
+    ledIndex = 2;
   } else if (ledMode == 5) {
     ledIndex = 2;
+  } else if (ledMode == 6) {
+    colorIndex = 0;
+    leds[0] = CRGB(255, 255, 255);
+    leds[NUM_LEDS - 1] = CRGB(255, 255, 255);
   }
   FastLED.show();
 }
 
-void movingLEDRough() {
+// void movingLEDRough() {
+//   if (ledMode == 3) {
+//     if (millis() - lastLEDUpdate >= 100) {
+//       lastLEDUpdate = millis();
+//       leds[ledIndex] = CRGB(0, 0, 0);
+//       leds[NUM_LEDS - 1 - ledIndex] = CRGB(0, 0, 0);
+//       ledIndex++;
+//       if (ledIndex > NUM_LEDS / 2) ledIndex = 2;
+//       leds[ledIndex] = CRGB(255, 80, 0);
+//       leds[NUM_LEDS - 1 - ledIndex] = CRGB(255, 80, 0);
+//       FastLED.show();
+//     }
+//   }
+// }
+
+void adaptiveLED() {
+  if (ledMode == 1) {
+    if (millis() - lastLEDUpdateL >= 400 - speedL) {
+      lastLEDUpdateL = millis();
+      fadeallLeft();
+      leds[adaptiveIndexL % 10] = CRGB(0, 255, 0);
+      adaptiveIndexL++;
+    }
+    // if (millis() - lastLEDUpdateR >= 400 - speedR) {
+    //   lastLEDUpdateR = millis();
+    //   fadeallRight();
+    //   leds[adaptiveIndexR % 10] = CRGB(0, 255, 0);
+    //   adaptiveIndexR++;
+    // }
+  }
+}
+
+void movingRoundLED() {
   if (ledMode == 3) {
-    if (millis() - lastLEDUpdate >= 100) {
+    if (millis() - lastLEDUpdate >= 25) {
       lastLEDUpdate = millis();
-      leds[ledIndex] = CRGB(0, 0, 0);
-      leds[NUM_LEDS - 1 - ledIndex] = CRGB(0, 0, 0);
-      ledIndex++;
-      if (ledIndex > NUM_LEDS / 2) ledIndex = 2;
+      fadeall();
       leds[ledIndex] = CRGB(255, 80, 0);
-      leds[NUM_LEDS - 1 - ledIndex] = CRGB(255, 80, 0);
       FastLED.show();
+      ledIndex++;
+      if (ledIndex >= NUM_LEDS - 2) ledIndex = 2;
     }
   }
 }
 
-void movingLED() {
+void movingSymLED() {
   if (ledMode == 4) {
-    if (millis() - lastLEDUpdate >= 20) {
+    if (millis() - lastLEDUpdate >= 60) {
       lastLEDUpdate = millis();
       fadeall();
       leds[ledIndex] = CRGB(255, 80, 0);
@@ -204,10 +244,65 @@ void pallet() {
 
 void rannd() {
   if (ledMode == 6) {
-    if (millis() - lastLEDUpdate >= 200) {
+    if (millis() - lastLEDUpdate >= 50) {
       lastLEDUpdate = millis();
-      for (int i = 0; i < NUM_LEDS - 1; ++i) {
-        leds[i] = CRGB(int(random(0, 255)), int(random(0, 255)), int(random(0, 255)));
+      if (colorIndex == 0 && millis() - lastPoliceUpdate > 250) {
+        lastPoliceUpdate = millis();
+        if (cyclon == true) {
+          for (int i = 1; i < NUM_LEDS / 2; i++) {
+            leds[i] = CRGB(255, 0, 0);
+            leds[NUM_LEDS - 1 - i] = CRGB(0, 0, 0);
+          }
+          cyclon = !cyclon;
+        } else if (cyclon == false) {
+          for (int i = 1; i < NUM_LEDS / 2; i++) {
+            leds[i] = CRGB(0, 0, 0);
+            leds[NUM_LEDS - 1 - i] = CRGB(0, 0, 255);
+          }
+          cyclon = !cyclon;
+        }
+      } else if (colorIndex == 1 && millis() - lastPoliceUpdate > 150) {
+        lastPoliceUpdate = millis();
+        if (cyclon == true) {
+          for (int i = 1; i < (NUM_LEDS - 10) / 2; i++) {
+            leds[i] = CRGB(255, 0, 0);
+            leds[NUM_LEDS - 1 - i] = CRGB(0, 0, 255);
+          }
+          for (int i = 6; i < (NUM_LEDS) / 2; i++) {
+            leds[i] = CRGB(0, 0, 0);
+            leds[NUM_LEDS - 2 - i] = CRGB(0, 0, 0);
+          }
+          cyclon = !cyclon;
+        } else if (cyclon == false) {
+          for (int i = 7; i < (NUM_LEDS) / 2; i++) {
+            leds[i] = CRGB(0, 0, 255);
+            leds[NUM_LEDS - 1 - i] = CRGB(255, 0, 0);
+          }
+          for (int i = 1; i < (NUM_LEDS - 8) / 2; i++) {
+            leds[i] = CRGB(0, 0, 0);
+            leds[NUM_LEDS - 1 - i] = CRGB(0, 0, 0);
+          }
+          cyclon = !cyclon;
+        }
+      } else if (colorIndex == 2 && millis() - lastPoliceUpdate > 50) {
+        lastPoliceUpdate = millis();
+        CRGB color = CRGB(0, 0, 0);
+        for (int i = 1; i < NUM_LEDS - 1; i++) {
+          int rand = random(0, 3);
+          if (rand == 0) {
+            color = CRGB(255, 0, 0);
+          } else if (rand == 1) {
+            color = CRGB(0, 0, 255);
+          } else if (rand == 2) {
+            color = CRGB(0, 0, 0);
+          }
+          leds[i] = color;
+        }
+      }
+      if (millis() - lastPoliceChangeTime >= 9000) {
+        lastPoliceChangeTime = millis();
+        colorIndex++;
+        if (colorIndex > 2) colorIndex = 0;
       }
       FastLED.show();
     }
@@ -216,4 +311,10 @@ void rannd() {
 
 void fadeall() {
   for (int i = 2; i < (NUM_LEDS - 2); i++) { leds[i].nscale8(60); }
+}
+void fadeallLeft() {
+  for (int i = 2; i < (NUM_LEDS - 2) / 2; i++) { leds[i].nscale8(60); }
+}
+void fadeallRight() {
+  for (int i = 11; i < (NUM_LEDS - 2); i++) { leds[i].nscale8(60); }
 }
