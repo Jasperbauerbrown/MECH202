@@ -36,11 +36,11 @@ long lastLEDUpdate = 0;
 int ledIndex = 2;
 int colorIndex = 0;
 bool cyclon = false;
-long lastPoliceChangeTime = 0;
-long lastPoliceUpdate = 0;
-int speedL = 0, speedR = 0;
-int adaptiveIndexL = 0, adaptiveIndexR = 0;
-int lastLEDUpdateL = 0, lastLEDUpdateR = 0;
+unsigned long lastPoliceChangeTime = 0;
+unsigned long lastPoliceUpdate = 0;
+int speedL = 0, speedR = 0, Lift = 0;
+int adaptiveIndexL = 1, adaptiveIndexR = 1;
+unsigned long lastLEDUpdateL = 0, lastLEDUpdateR = 0, lastLEDUpdateLift = 0;
 
 DEFINE_GRADIENT_PALETTE(colors_gp){
   0, 255, 0, 0,    //black
@@ -113,6 +113,7 @@ void loop() {
         analogWrite(LiftDownPin, 0);
       }
       updateLEDs(controls.ledMode);
+      Lift = controls.lift;
       speedL = controls.driveLeft;
       speedR = controls.driveRight;
     }
@@ -154,7 +155,7 @@ void updateLEDs(int newMode) {
     leds[1] = CRGB(255, 0, 0);
     leds[NUM_LEDS - 2] = CRGB(255, 0, 0);
   } else if (ledMode == 4) {
-    ledIndex = 2;
+    ledIndex = 3;
   } else if (ledMode == 5) {
     ledIndex = 2;
   } else if (ledMode == 6) {
@@ -182,18 +183,54 @@ void updateLEDs(int newMode) {
 
 void adaptiveLED() {
   if (ledMode == 1) {
-    if (millis() - lastLEDUpdateL >= 400 - speedL) {
+    if (abs(speedL) != 0 && millis() - lastLEDUpdateL >= (300 - abs(speedL))) {
       lastLEDUpdateL = millis();
       fadeallLeft();
-      leds[adaptiveIndexL % 10] = CRGB(0, 255, 0);
-      adaptiveIndexL++;
+      leds[abs(adaptiveIndexL % 9) + 3] = CRGB(0, 255, 0);
+      leds[abs((adaptiveIndexL + 4) % 9) + 3] = CRGB(0, 255, 0);
+      if (speedL < 0) adaptiveIndexL--;
+      else adaptiveIndexL++;
+      FastLED.show();
     }
-    // if (millis() - lastLEDUpdateR >= 400 - speedR) {
-    //   lastLEDUpdateR = millis();
-    //   fadeallRight();
-    //   leds[adaptiveIndexR % 10] = CRGB(0, 255, 0);
-    //   adaptiveIndexR++;
-    // }
+    if (abs(speedR) != 0 && millis() - lastLEDUpdateR >= (300 - abs(speedR))) {
+      lastLEDUpdateR = millis();
+      fadeallRight();
+      leds[11 + 7 - abs(adaptiveIndexR % 9)] = CRGB(0, 255, 0);
+      leds[11 + 7 - abs((adaptiveIndexR + 4) % 9)] = CRGB(0, 255, 0);
+      if (speedR < 0) adaptiveIndexR--;
+      else adaptiveIndexR++;
+      FastLED.show();
+    }
+    if (Lift == 0) {
+      leds[0] = CRGB(255, 255, 255);
+      leds[1] = CRGB(255, 255, 255);
+      leds[2] = CRGB(255, 255, 255);
+      leds[19] = CRGB(255, 255, 255);
+      leds[20] = CRGB(255, 255, 255);
+      leds[21] = CRGB(255, 255, 255);
+      FastLED.show();
+    } else if (millis() - lastLEDUpdateLift >= (600 - abs(Lift))) {
+      lastLEDUpdateLift = millis();
+      if (leds[0] == CRGB(0, 0, 0)) {
+        CRGB color = CRGB(0, 0, 0);
+        if (Lift < 0) color = CRGB(0, 255, 0);
+        else color = CRGB(255, 0, 0);
+        leds[0] = color;
+        leds[1] = color;
+        leds[2] = color;
+        leds[19] = color;
+        leds[20] = color;
+        leds[21] = color;
+      } else {
+        leds[0] = CRGB(0, 0, 0);
+        leds[1] = CRGB(0, 0, 0);
+        leds[2] = CRGB(0, 0, 0);
+        leds[19] = CRGB(0, 0, 0);
+        leds[20] = CRGB(0, 0, 0);
+        leds[21] = CRGB(0, 0, 0);
+      }
+      FastLED.show();
+    }
   }
 }
 
@@ -313,8 +350,8 @@ void fadeall() {
   for (int i = 2; i < (NUM_LEDS - 2); i++) { leds[i].nscale8(60); }
 }
 void fadeallLeft() {
-  for (int i = 2; i < (NUM_LEDS - 2) / 2; i++) { leds[i].nscale8(60); }
+  for (int i = 2; i < (NUM_LEDS) / 2; i++) { leds[i].nscale8(80); }
 }
 void fadeallRight() {
-  for (int i = 11; i < (NUM_LEDS - 2); i++) { leds[i].nscale8(60); }
+  for (int i = 11; i < (NUM_LEDS - 2); i++) { leds[i].nscale8(80); }
 }

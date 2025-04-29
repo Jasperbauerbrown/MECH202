@@ -11,7 +11,7 @@ const byte address[6] = "00001";
 
 int buttonState = 0;
 int switchState = 1;
-bool switchDebounce = false;
+bool buttonDebounce = false;
 
 // Define joystick pins
 const int LYPin = A4;
@@ -60,17 +60,18 @@ void setup() {
 void loop() {
   controlSchema controls;
   controls.button = digitalRead(buttonPin);
+  if (controls.button == LOW && buttonDebounce == true) {
+    buttonDebounce = false;
+  }
   if (digitalRead(switch1Pin) == HIGH) {
     switchState = 0;
   } else if (digitalRead(switch2Pin) == HIGH) {
     switchState = 2;
-    switchDebounce = false;
   } else {
     switchState = 1;
-    switchDebounce = false;
   }
 
-  if (digitalRead(buttonPin) == HIGH) {
+  if (controls.button == HIGH) {
     digitalWrite(ledPin, HIGH);
   } else {
     digitalWrite(ledPin, LOW);
@@ -96,8 +97,8 @@ void loop() {
     controls.driveLeft = yJoystickL;
     controls.driveRight = yJoystickR;
   }
-  if (switchState == 0 && switchDebounce == false) {
-    switchDebounce = true;
+  if (controls.button == HIGH && buttonDebounce == false) {
+    buttonDebounce = true;
     ledMode++;
     if (ledMode >= 7) ledMode = 0;
   }
