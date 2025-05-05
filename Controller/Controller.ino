@@ -31,6 +31,7 @@ struct controlSchema {
   int lift = 0;
   bool button = 0;
   int ledMode = 0;
+  int switchState = 1;
 };
 
 int deadZone = 25;
@@ -70,7 +71,7 @@ void loop() {
   } else {
     switchState = 1;
   }
-
+  controls.switchState = switchState;
   if (controls.button == HIGH) {
     digitalWrite(ledPin, HIGH);
   } else {

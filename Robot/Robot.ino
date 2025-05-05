@@ -2,6 +2,7 @@
 #include <nRF24L01.h>  //Part of the RF24 library
 #include <RF24.h>
 #include <FastLED.h>
+#include <Servo.h>
 
 #define LForwardPin 10
 #define LBackwardPin 11
@@ -9,6 +10,7 @@
 #define RBackwardPin 9
 #define LiftUpPin 4
 #define LiftDownPin 5
+#define truckServoPin 3
 
 #define NUM_LEDS 22
 #define DATA_PIN 41
@@ -24,12 +26,16 @@ struct controlSchema {
   int lift = 0;
   bool button = 0;
   int ledMode = 0;
+  int switchState = 1;
 };
 
 int ledMode = -1;
 
 const int radioCheckPeriod = 50;
 int lastRec = 0;
+
+Servo truckServo;
+int truckServoPos = 1;
 
 CRGB leds[NUM_LEDS];
 long lastLEDUpdate = 0;
@@ -86,9 +92,12 @@ void setup() {
   pinMode(LiftUpPin, OUTPUT);
   pinMode(LiftDownPin, OUTPUT);
 
+  truckServo.attach(truckServoPin);
+
+  truckServo.write(90);
+
   Serial.begin(9600);
 
-  // Initialize NRF24L01 module
   radio.begin();
   radio.setChannel(28);               // Use the same channel as sender
   radio.setPALevel(RF24_PA_HIGH);     // Power level (HIGH for better range), switch to low if experiencing soft resets
@@ -136,6 +145,18 @@ void loop() {
       } else if (controls.lift < 0) {
         analogWrite(LiftUpPin, -controls.lift);
         analogWrite(LiftDownPin, 0);
+      }
+      if (controls.switchState == 0 && truckServoPos != 0) {
+        truckServoPos = 0;
+        truckServo.write(60);
+      }
+      else if (controls.switchState == 1 && truckServoPos != 1) {
+        truckServoPos = 1;
+        truckServo.write(75);
+      }
+      else if (controls.switchState == 2 && truckServoPos != 2) {
+        truckServoPos = 2;
+        truckServo.write(158);
       }
       updateLEDs(controls.ledMode);
       Lift = controls.lift;
@@ -189,21 +210,6 @@ void updateLEDs(int newMode) {
   FastLED.show();
 }
 
-// void movingLEDRough() {
-//   if (ledMode == 3) {
-//     if (millis() - lastLEDUpdate >= 100) {
-//       lastLEDUpdate = millis();
-//       leds[ledIndex] = CRGB(0, 0, 0);
-//       leds[NUM_LEDS - 1 - ledIndex] = CRGB(0, 0, 0);
-//       ledIndex++;
-//       if (ledIndex > NUM_LEDS / 2) ledIndex = 2;
-//       leds[ledIndex] = CRGB(255, 80, 0);
-//       leds[NUM_LEDS - 1 - ledIndex] = CRGB(255, 80, 0);
-//       FastLED.show();
-//     }
-//   }
-// }
-
 void adaptiveLED() {
   if (ledMode == 1) {
     if (abs(speedL) != 0 && millis() - lastLEDUpdateL >= 20) {
@@ -219,11 +225,6 @@ void adaptiveLED() {
         leds[i] = ColorFromPalette(*palletL, subindex, 255, LINEARBLEND);
         if (subindex > 255) subindex = 0;
       }
-      // fadeallLeft();
-      // leds[abs(adaptiveIndexL % 9) + 3] = CRGB(0, 255, 0);
-      // leds[abs((adaptiveIndexL + 4) % 9) + 3] = CRGB(0, 255, 0);
-      // if (speedL < 0) adaptiveIndexL--;
-      // else adaptiveIndexL++;
       FastLED.show();
     }
     if (abs(speedR) != 0 && millis() - lastLEDUpdateR >= 20) {
