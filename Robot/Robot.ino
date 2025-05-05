@@ -2,7 +2,6 @@
 #include <nRF24L01.h>  //Part of the RF24 library
 #include <RF24.h>
 #include <FastLED.h>
-#include <Servo.h>
 
 #define LForwardPin 10
 #define LBackwardPin 11
@@ -14,6 +13,13 @@
 
 #define NUM_LEDS 22
 #define DATA_PIN 41
+
+// Custom servo control variables
+#define MIN_PULSE_US 500   // 0 degrees
+#define MAX_PULSE_US 2500  // 180 degrees
+#define SERVO_PERIOD_US 20000  // 20ms = 50Hz
+volatile uint16_t servoPulseWidth = 1580;  // Initial pulse width (~90 degrees)
+int truckServoPos = 158;  // Track servo position (degrees)
 
 RF24 radio(49, 48);  // CE = 49, CSN = 48
 const byte address[6] = "00001";
@@ -33,10 +39,6 @@ int ledMode = -1;
 
 const int radioCheckPeriod = 50;
 int lastRec = 0;
-
-Servo truckServo;
-int truckServoPos = 90;
-long servoUpdate = 0;
 
 CRGB leds[NUM_LEDS];
 long lastLEDUpdate = 0;
@@ -84,6 +86,25 @@ CRGBPalette16 color_pallet = colors_gp;
 CRGBPalette16 forward_pallet = forward_gp;
 CRGBPalette16 reverse_pallet = reverse_gp;
 
+// Custom servo functions
+void servoInit() {
+  pinMode(truckServoPin, OUTPUT);
+  digitalWrite(truckServoPin, LOW);
+}
+
+void servoWrite(uint8_t angle) {
+  angle = constrain(angle, 0, 180);
+  servoPulseWidth = map(angle, 0, 180, MIN_PULSE_US, MAX_PULSE_US);
+}
+
+void servoUpdate() {
+  digitalWrite(truckServoPin, HIGH);
+  delayMicroseconds(servoPulseWidth);
+  digitalWrite(truckServoPin, LOW);
+  delayMicroseconds(SERVO_PERIOD_US - servoPulseWidth);
+}
+
+
 void setup() {
   // Motor pins as outputs
   pinMode(LForwardPin, OUTPUT);
@@ -93,9 +114,8 @@ void setup() {
   pinMode(LiftUpPin, OUTPUT);
   pinMode(LiftDownPin, OUTPUT);
 
-  truckServo.attach(truckServoPin);
-  truckServoPos = 158;
-  truckServo.write(truckServoPos);
+  servoInit();
+  servoWrite(truckServoPos);
 
   Serial.begin(9600);
 
@@ -147,24 +167,22 @@ void loop() {
         analogWrite(LiftUpPin, -controls.lift);
         analogWrite(LiftDownPin, 0);
       }
+       // Servo control
       if (controls.switchState == 0) {
         truckServoPos = 60;
-        truckServo.write(truckServoPos);
-      }
-      else if (controls.switchState == 1) {
+      } else if (controls.switchState == 1) {
         truckServoPos = 75;
-        truckServo.write(truckServoPos);
-      }
-      else if (controls.switchState == 2) {
+      } else if (controls.switchState == 2) {
         truckServoPos = 158;
-        truckServo.write(truckServoPos);
       }
+      servoWrite(truckServoPos);
       updateLEDs(controls.ledMode);
       Lift = controls.lift;
       speedL = controls.driveLeft;
       speedR = controls.driveRight;
     }
   }
+  servoUpdate();
   adaptiveLED();
   movingRoundLED();
   movingSymLED();
