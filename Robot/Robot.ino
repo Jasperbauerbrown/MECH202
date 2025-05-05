@@ -35,7 +35,8 @@ const int radioCheckPeriod = 50;
 int lastRec = 0;
 
 Servo truckServo;
-int truckServoPos = 1;
+int truckServoPos = 90;
+long servoUpdate = 0;
 
 CRGB leds[NUM_LEDS];
 long lastLEDUpdate = 0;
@@ -93,8 +94,8 @@ void setup() {
   pinMode(LiftDownPin, OUTPUT);
 
   truckServo.attach(truckServoPin);
-
-  truckServo.write(90);
+  truckServoPos = 158;
+  truckServo.write(truckServoPos);
 
   Serial.begin(9600);
 
@@ -146,17 +147,17 @@ void loop() {
         analogWrite(LiftUpPin, -controls.lift);
         analogWrite(LiftDownPin, 0);
       }
-      if (controls.switchState == 0 && truckServoPos != 0) {
-        truckServoPos = 0;
-        truckServo.write(60);
+      if (controls.switchState == 0) {
+        truckServoPos = 60;
+        truckServo.write(truckServoPos);
       }
-      else if (controls.switchState == 1 && truckServoPos != 1) {
-        truckServoPos = 1;
-        truckServo.write(75);
+      else if (controls.switchState == 1) {
+        truckServoPos = 75;
+        truckServo.write(truckServoPos);
       }
-      else if (controls.switchState == 2 && truckServoPos != 2) {
-        truckServoPos = 2;
-        truckServo.write(158);
+      else if (controls.switchState == 2) {
+        truckServoPos = 158;
+        truckServo.write(truckServoPos);
       }
       updateLEDs(controls.ledMode);
       Lift = controls.lift;
@@ -252,7 +253,7 @@ void adaptiveLED() {
       leds[21] = CRGB(255, 255, 255);
       FastLED.show();
     } else if (millis() - lastLEDUpdateLift >= (600 - abs(Lift))) {
-      stoppedLift == true;
+      stoppedLift == false;
       lastLEDUpdateLift = millis();
       if (leds[0] == CRGB(0, 0, 0)) {
         CRGB color = CRGB(0, 0, 0);

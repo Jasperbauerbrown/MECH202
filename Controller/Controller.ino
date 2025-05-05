@@ -2,6 +2,8 @@
 #include <nRF24L01.h>  //part of the RF24 library
 #include <RF24.h>
 
+const bool debug = false;
+
 // Define NRF24L01 radio object with CE and CSN pins
 RF24 radio(7, 8);  // CE = 7, CSN = 8
 
@@ -105,7 +107,7 @@ void loop() {
   }
   controls.ledMode = ledMode;
   bool success = radio.write(&controls, sizeof(controls));
-  printStruct(controls);
+  if (debug) printStruct(controls);
   delay(50);
 }
 
