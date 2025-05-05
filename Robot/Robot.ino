@@ -41,16 +41,41 @@ unsigned long lastPoliceUpdate = 0;
 int speedL = 0, speedR = 0, Lift = 0;
 int adaptiveIndexL = 1, adaptiveIndexR = 1;
 unsigned long lastLEDUpdateL = 0, lastLEDUpdateR = 0, lastLEDUpdateLift = 0;
+bool stoppedLift = false;
 
 DEFINE_GRADIENT_PALETTE(colors_gp){
-  0, 255, 0, 0,    //black
-  128, 0, 255, 0,  //red
-  224, 0, 0, 255,  //bright yellow
+  0, 255, 0, 0,
+  128, 0, 255, 0,
+  224, 0, 0, 255,
   230, 255, 0, 255,
   255, 255, 0, 255
-};  //full whit
+};
 
-CRGBPalette16 myPal = colors_gp;
+DEFINE_GRADIENT_PALETTE(forward_gp){
+  0, 0, 0, 0,
+  38, 0, 0, 0,
+  63, 0, 255, 0,
+  89, 0, 0, 0,
+  165, 0, 0, 0,
+  191, 0, 255, 0,
+  216, 0, 0, 0,
+  255, 0, 0, 0
+};
+
+DEFINE_GRADIENT_PALETTE(reverse_gp){
+  0, 0, 0, 0,
+  38, 0, 0, 0,
+  63, 255, 0, 0,
+  89, 0, 0, 0,
+  165, 0, 0, 0,
+  191, 255, 0, 0,
+  216, 0, 0, 0,
+  255, 0, 0, 0
+};
+
+CRGBPalette16 color_pallet = colors_gp;
+CRGBPalette16 forward_pallet = forward_gp;
+CRGBPalette16 reverse_pallet = reverse_gp;
 
 void setup() {
   // Motor pins as outputs
@@ -134,8 +159,6 @@ void updateLEDs(int newMode) {
       leds[i] = CRGB::Black;
     }
   } else if (ledMode == 1) {
-    leds[0] = CRGB(255, 255, 255);
-    leds[NUM_LEDS - 1] = CRGB(255, 255, 255);
     colorIndex = 0;
   } else if (ledMode == 2) {
     leds[0] = CRGB(255, 255, 255);
@@ -183,25 +206,43 @@ void updateLEDs(int newMode) {
 
 void adaptiveLED() {
   if (ledMode == 1) {
-    if (abs(speedL) != 0 && millis() - lastLEDUpdateL >= (300 - abs(speedL))) {
+    if (abs(speedL) != 0 && millis() - lastLEDUpdateL >= 20) {
       lastLEDUpdateL = millis();
-      fadeallLeft();
-      leds[abs(adaptiveIndexL % 9) + 3] = CRGB(0, 255, 0);
-      leds[abs((adaptiveIndexL + 4) % 9) + 3] = CRGB(0, 255, 0);
-      if (speedL < 0) adaptiveIndexL--;
-      else adaptiveIndexL++;
+      adaptiveIndexL = (adaptiveIndexL + (1 + (abs(speedL) / 35)) * (-speedL/abs(speedL))) % 256;
+      CRGBPalette16 *palletL = &forward_pallet;
+      if (speedL < 0) {
+        palletL = &reverse_pallet;
+      }
+      int subindex = adaptiveIndexL;
+      for (int i = 3; i < 11; i++) {
+        subindex += 14;
+        leds[i] = ColorFromPalette(*palletL, subindex, 255, LINEARBLEND);
+        if (subindex > 255) subindex = 0;
+      }
+      // fadeallLeft();
+      // leds[abs(adaptiveIndexL % 9) + 3] = CRGB(0, 255, 0);
+      // leds[abs((adaptiveIndexL + 4) % 9) + 3] = CRGB(0, 255, 0);
+      // if (speedL < 0) adaptiveIndexL--;
+      // else adaptiveIndexL++;
       FastLED.show();
     }
-    if (abs(speedR) != 0 && millis() - lastLEDUpdateR >= (300 - abs(speedR))) {
+    if (abs(speedR) != 0 && millis() - lastLEDUpdateR >= 20) {
       lastLEDUpdateR = millis();
-      fadeallRight();
-      leds[11 + 7 - abs(adaptiveIndexR % 9)] = CRGB(0, 255, 0);
-      leds[11 + 7 - abs((adaptiveIndexR + 4) % 9)] = CRGB(0, 255, 0);
-      if (speedR < 0) adaptiveIndexR--;
-      else adaptiveIndexR++;
+      adaptiveIndexR = (adaptiveIndexR + (1 + (abs(speedR) / 35)) * (speedR/abs(speedR))) % 256;
+      CRGBPalette16 *palletR = &forward_pallet;
+      if (speedR < 0) {
+        palletR = &reverse_pallet;
+      }
+      int subindex = adaptiveIndexR;
+      for (int i = 11; i < 19; i++) {
+        subindex += 14;
+        leds[i] = ColorFromPalette(*palletR, subindex, 255, LINEARBLEND);
+        if (subindex > 255) subindex = 0;
+      }
       FastLED.show();
     }
-    if (Lift == 0) {
+    if (Lift == 0 && stoppedLift == false) {
+      stoppedLift == true;
       leds[0] = CRGB(255, 255, 255);
       leds[1] = CRGB(255, 255, 255);
       leds[2] = CRGB(255, 255, 255);
@@ -210,10 +251,11 @@ void adaptiveLED() {
       leds[21] = CRGB(255, 255, 255);
       FastLED.show();
     } else if (millis() - lastLEDUpdateLift >= (600 - abs(Lift))) {
+      stoppedLift == true;
       lastLEDUpdateLift = millis();
       if (leds[0] == CRGB(0, 0, 0)) {
         CRGB color = CRGB(0, 0, 0);
-        if (Lift < 0) color = CRGB(0, 255, 0);
+        if (Lift > 0) color = CRGB(0, 255, 0);
         else color = CRGB(255, 0, 0);
         leds[0] = color;
         leds[1] = color;
@@ -266,11 +308,10 @@ void pallet() {
   if (ledMode == 5) {
     if (millis() - lastLEDUpdate >= 10) {
       lastLEDUpdate = millis();
-      colorIndex = millis() / 5;
-      if (colorIndex > 255) colorIndex = colorIndex - 255;
-      for (int i = 0; i < (NUM_LEDS - 1) / 2; ++i) {
-        leds[i] = ColorFromPalette(myPal, colorIndex, 255, LINEARBLEND);
-        leds[NUM_LEDS - 1 - i] = ColorFromPalette(myPal, colorIndex, 255, LINEARBLEND);
+      colorIndex = (millis() / 5) % 256;
+      for (int i = 0; i < NUM_LEDS / 2; ++i) {
+        leds[i] = ColorFromPalette(color_pallet, colorIndex, 255, LINEARBLEND);
+        leds[NUM_LEDS - 1 - i] = ColorFromPalette(color_pallet, colorIndex, 255, LINEARBLEND);
         colorIndex += 14;
         if (colorIndex > 255) colorIndex = colorIndex - 255;
       }
