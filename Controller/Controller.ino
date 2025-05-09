@@ -11,19 +11,24 @@ RF24 radio(7, 8);  // CE = 7, CSN = 8
 // This does NOT need to be changed based on your team number.
 const byte address[6] = "00001";
 
-int buttonState = 0;
+bool servoDeployed = false;
+int littleButtonState = 0;
 int switchState = 1;
-bool buttonDebounce = false;
+bool armSwitchState = false;
+bool littleButtonDebounce = false;
+bool bigButtonDebounce = false;
 
 // Define joystick pins
-const int LYPin = A4;
-const int LXPin = A5;
-const int RYPin = A2;
-const int RXPin = A3;
-const int buttonPin = 2;
-const int switch1Pin = 4;
+const int RYPin = A3;
+const int RXPin = A2;
+const int LYPin = A1;
+const int LXPin = A0;
+const int potPin = A4;
+const int bigButtonPin = 2;
+const int littleButtonPin = 3;
+const int switch1Pin = 6;
 const int switch2Pin = 5;
-const int ledPin = 3;
+const int armSwitchPin = 9;
 
 
 // This MUST match the struct in your controller code.
@@ -31,9 +36,10 @@ struct controlSchema {
   int driveLeft = 0;
   int driveRight = 0;
   int lift = 0;
-  bool button = 0;
+  bool servoDeployed = false;
   int ledMode = 0;
   int switchState = 1;
+  int pot = 0;
 };
 
 int deadZone = 25;
@@ -46,10 +52,11 @@ int ledMode = 0;
 
 void setup() {
   Serial.begin(9600);
-  pinMode(buttonPin, INPUT);
-  pinMode(switch1Pin, INPUT);
-  pinMode(switch2Pin, INPUT);
-  pinMode(ledPin, OUTPUT);
+  pinMode(littleButtonPin, INPUT);
+  pinMode(bigButtonPin, INPUT);
+  pinMode(switch1Pin, INPUT_PULLUP);
+  pinMode(switch2Pin, INPUT_PULLUP);
+  pinMode(armSwitchPin, INPUT);
 
   // Initialize NRF24L01 module
   radio.begin();
@@ -62,9 +69,9 @@ void setup() {
 
 void loop() {
   controlSchema controls;
-  controls.button = digitalRead(buttonPin);
-  if (controls.button == LOW && buttonDebounce == true) {
-    buttonDebounce = false;
+  littleButtonState = digitalRead(littleButtonPin);
+  if (littleButtonState == LOW && littleButtonDebounce == true) {
+    littleButtonDebounce = false;
   }
   if (digitalRead(switch1Pin) == HIGH) {
     switchState = 0;
@@ -73,21 +80,22 @@ void loop() {
   } else {
     switchState = 1;
   }
-  controls.switchState = switchState;
-  if (controls.button == HIGH) {
-    digitalWrite(ledPin, HIGH);
-  } else {
-    digitalWrite(ledPin, LOW);
+  if (digitalRead(armSwitchPin) == HIGH) {
+    armSwitchState = true;
   }
+  if (armSwitchState = true && digitalRead(bigButtonPin) == HIGH) {
+    servoDeployed = true;
+  }
+  else if (armSwitchState = false) servoDeployed = false;
 
   xJoystickL = analogRead(LXPin);
   yJoystickL = analogRead(LYPin);
   xJoystickR = analogRead(RXPin);
   yJoystickR = analogRead(RYPin);
-  xJoystickL = -map(xJoystickL, 0, 1023, -255, 255);
-  yJoystickL = -map(yJoystickL, 0, 1023, -255, 255);
-  xJoystickR = -map(xJoystickR, 0, 1023, -255, 255);
-  yJoystickR = -map(yJoystickR, 0, 1023, -255, 255);
+  xJoystickL = map(xJoystickL, 0, 1023, -255, 255);
+  yJoystickL = map(yJoystickL, 0, 1023, -255, 255);
+  xJoystickR = map(xJoystickR, 0, 1023, -255, 255);
+  yJoystickR = map(yJoystickR, 0, 1023, -255, 255);
   if (abs(xJoystickL) < deadZone) xJoystickL = 0;
   if (abs(yJoystickL) < deadZone) yJoystickL = 0;
   if (abs(xJoystickR) < deadZone) xJoystickR = 0;
@@ -100,20 +108,25 @@ void loop() {
     controls.driveLeft = yJoystickL;
     controls.driveRight = yJoystickR;
   }
-  if (controls.button == HIGH && buttonDebounce == false) {
-    buttonDebounce = true;
+  if (littleButtonState == HIGH && littleButtonDebounce == false) {
+    littleButtonDebounce = true;
     ledMode++;
     if (ledMode >= 7) ledMode = 0;
   }
+  controls.switchState = switchState;
   controls.ledMode = ledMode;
+  controls.pot = map(analogRead(potPin), 0, 1023, 0, 180);
+  controls.servoDeployed = servoDeployed;
   bool success = radio.write(&controls, sizeof(controls));
-  if (debug) printStruct(controls);
+  Serial.println(yJoystickR);
+
+  //if (debug) printStruct(controls);
   delay(50);
 }
 
-void printStruct(controlSchema controls) {
-  Serial.print("\n\n\n\n");
-  Serial.println("DriveL: " + String(controls.driveLeft) + "   DriveR: " + String(controls.driveRight));
-  Serial.println("Button: " + String(controls.button) + "   Switch State: " + String(switchState));
-  Serial.println("LEDMode: " + String(controls.ledMode));
-}
+// void printStruct(controlSchema controls) {
+//   Serial.print("\n\n\n\n");
+//   Serial.println("DriveL: " + String(controls.driveLeft) + "   DriveR: " + String(controls.driveRight));
+//   Serial.println("Button: " + String(controls.button) + "   Switch State: " + String(switchState));
+//   Serial.println("LEDMode: " + String(controls.ledMode));
+// }

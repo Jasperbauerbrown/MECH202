@@ -30,9 +30,10 @@ struct controlSchema {
   int driveLeft = 0;
   int driveRight = 0;
   int lift = 0;
-  bool button = 0;
+  bool servoDeployed = false;
   int ledMode = 0;
   int switchState = 1;
+  int pot = 0;
 };
 
 int ledMode = -1;
@@ -168,13 +169,14 @@ void loop() {
         analogWrite(LiftDownPin, 0);
       }
        // Servo control
-      if (controls.switchState == 0) {
-        truckServoPos = 60;
-      } else if (controls.switchState == 1) {
-        truckServoPos = 75;
-      } else if (controls.switchState == 2) {
-        truckServoPos = 158;
-      }
+      // if (controls.switchState == 0) {
+      //   truckServoPos = 60;
+      // } else if (controls.switchState == 1) {
+      //   truckServoPos = 75;
+      // } else if (controls.switchState == 2) {
+      //   truckServoPos = 158;
+      // }
+      truckServoPos = controls.pot;
       servoWrite(truckServoPos);
       updateLEDs(controls.ledMode);
       Lift = controls.lift;
