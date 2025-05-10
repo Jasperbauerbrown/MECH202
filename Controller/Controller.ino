@@ -17,6 +17,7 @@ int switchState = 1;
 bool armSwitchState = false;
 bool littleButtonDebounce = false;
 bool bigButtonDebounce = false;
+int pot = 0;
 
 // Define joystick pins
 const int RYPin = A3;
@@ -73,20 +74,18 @@ void loop() {
   if (littleButtonState == LOW && littleButtonDebounce == true) {
     littleButtonDebounce = false;
   }
-  if (digitalRead(switch1Pin) == HIGH) {
+  if (digitalRead(switch1Pin) == LOW) {
     switchState = 0;
-  } else if (digitalRead(switch2Pin) == HIGH) {
+  } else if (digitalRead(switch2Pin) == LOW) {
     switchState = 2;
   } else {
     switchState = 1;
   }
-  if (digitalRead(armSwitchPin) == HIGH) {
-    armSwitchState = true;
-  }
-  if (armSwitchState = true && digitalRead(bigButtonPin) == HIGH) {
+  armSwitchState = digitalRead(armSwitchPin);
+  if (armSwitchState == true && digitalRead(bigButtonPin) == HIGH) {
     servoDeployed = true;
   }
-  else if (armSwitchState = false) servoDeployed = false;
+  else if (armSwitchState == false) servoDeployed = false;
 
   xJoystickL = analogRead(LXPin);
   yJoystickL = analogRead(LYPin);
@@ -100,7 +99,7 @@ void loop() {
   if (abs(yJoystickL) < deadZone) yJoystickL = 0;
   if (abs(xJoystickR) < deadZone) xJoystickR = 0;
   if (abs(yJoystickR) < deadZone) yJoystickR = 0;
-  if (switchState == 2) {
+  if (switchState == 2 || switchState == 0) {
     controls.lift = yJoystickR;
     controls.driveLeft = constrain(yJoystickL + xJoystickL, -255, 255);
     controls.driveRight = constrain(yJoystickL - xJoystickL, -255, 255);
@@ -115,10 +114,15 @@ void loop() {
   }
   controls.switchState = switchState;
   controls.ledMode = ledMode;
-  controls.pot = map(analogRead(potPin), 0, 1023, 0, 180);
+  int newPot = map(analogRead(potPin), 0, 1023, 70, 180);
+  if (abs(newPot - pot) > 5) {
+    pot = newPot;
+    controls.pot = newPot;
+  }
+  else controls.pot = pot;
   controls.servoDeployed = servoDeployed;
   bool success = radio.write(&controls, sizeof(controls));
-  Serial.println(yJoystickR);
+  Serial.println(switchState);
 
   //if (debug) printStruct(controls);
   delay(50);

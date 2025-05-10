@@ -10,21 +10,44 @@
 #define LiftUpPin 4
 #define LiftDownPin 5
 #define truckServoPin 3
+#define fingerServoPin 2
 
 #define NUM_LEDS 22
 #define DATA_PIN 41
 
 // Custom servo control variables
-#define MIN_PULSE_US 500   // 0 degrees
-#define MAX_PULSE_US 2500  // 180 degrees
+#define MIN_PULSE_US 500       // 0 degrees
+#define MAX_PULSE_US 2500      // 180 degrees
 #define SERVO_PERIOD_US 20000  // 20ms = 50Hz
-volatile uint16_t servoPulseWidth = 1580;  // Initial pulse width (~90 degrees)
-int truckServoPos = 158;  // Track servo position (degrees)
 
 RF24 radio(49, 48);  // CE = 49, CSN = 48
 const byte address[6] = "00001";
 
 bool debug = false;
+
+struct servo {
+  const int pin;
+  int position;
+  int servoPulseWidth = 0;
+  servo(int p, int pos)
+    : pin(p), position(pos) {}
+  void update() {
+    position = constrain(position, 0, 180);
+    servoPulseWidth = map(position, 0, 180, MIN_PULSE_US, MAX_PULSE_US);
+    digitalWrite(pin, HIGH);
+    delayMicroseconds(servoPulseWidth);
+    digitalWrite(pin, LOW);
+    delayMicroseconds(SERVO_PERIOD_US - servoPulseWidth);
+  }
+  void init() {
+    pinMode(pin, OUTPUT);
+    digitalWrite(pin, LOW);
+    update();
+  }
+};
+
+servo truckServo(truckServoPin, 158);
+servo fingerServo(fingerServoPin, 90);
 
 struct controlSchema {
   int driveLeft = 0;
@@ -88,26 +111,10 @@ CRGBPalette16 forward_pallet = forward_gp;
 CRGBPalette16 reverse_pallet = reverse_gp;
 
 // Custom servo functions
-void servoInit() {
-  pinMode(truckServoPin, OUTPUT);
-  digitalWrite(truckServoPin, LOW);
-}
-
-void servoWrite(uint8_t angle) {
-  angle = constrain(angle, 0, 180);
-  servoPulseWidth = map(angle, 0, 180, MIN_PULSE_US, MAX_PULSE_US);
-}
-
-void servoUpdate() {
-  digitalWrite(truckServoPin, HIGH);
-  delayMicroseconds(servoPulseWidth);
-  digitalWrite(truckServoPin, LOW);
-  delayMicroseconds(SERVO_PERIOD_US - servoPulseWidth);
-}
 
 
 void setup() {
-  // Motor pins as outputs
+
   pinMode(LForwardPin, OUTPUT);
   pinMode(LBackwardPin, OUTPUT);
   pinMode(RForwardPin, OUTPUT);
@@ -115,8 +122,8 @@ void setup() {
   pinMode(LiftUpPin, OUTPUT);
   pinMode(LiftDownPin, OUTPUT);
 
-  servoInit();
-  servoWrite(truckServoPos);
+  truckServo.init();
+  fingerServo.init();
 
   Serial.begin(9600);
 
@@ -168,7 +175,7 @@ void loop() {
         analogWrite(LiftUpPin, -controls.lift);
         analogWrite(LiftDownPin, 0);
       }
-       // Servo control
+      // Servo control
       // if (controls.switchState == 0) {
       //   truckServoPos = 60;
       // } else if (controls.switchState == 1) {
@@ -176,15 +183,24 @@ void loop() {
       // } else if (controls.switchState == 2) {
       //   truckServoPos = 158;
       // }
-      truckServoPos = controls.pot;
-      servoWrite(truckServoPos);
+      if (controls.pot >= 70) {
+        truckServo.position = controls.pot;
+      }
+      
+      if (controls.servoDeployed == true) {
+        fingerServo.position = 180;
+      }
+      else if (controls.servoDeployed == false && fingerServo.position != 0) {
+        fingerServo.position = 90;
+      }
       updateLEDs(controls.ledMode);
       Lift = controls.lift;
       speedL = controls.driveLeft;
       speedR = controls.driveRight;
     }
   }
-  servoUpdate();
+  truckServo.update();
+  fingerServo.update();
   adaptiveLED();
   movingRoundLED();
   movingSymLED();
@@ -235,7 +251,7 @@ void adaptiveLED() {
   if (ledMode == 1) {
     if (abs(speedL) != 0 && millis() - lastLEDUpdateL >= 20) {
       lastLEDUpdateL = millis();
-      adaptiveIndexL = (adaptiveIndexL + (1 + (abs(speedL) / 35)) * (-speedL/abs(speedL))) % 256;
+      adaptiveIndexL = (adaptiveIndexL + (1 + (abs(speedL) / 35)) * (-speedL / abs(speedL))) % 256;
       CRGBPalette16 *palletL = &forward_pallet;
       if (speedL < 0) {
         palletL = &reverse_pallet;
@@ -250,7 +266,7 @@ void adaptiveLED() {
     }
     if (abs(speedR) != 0 && millis() - lastLEDUpdateR >= 20) {
       lastLEDUpdateR = millis();
-      adaptiveIndexR = (adaptiveIndexR + (1 + (abs(speedR) / 35)) * (speedR/abs(speedR))) % 256;
+      adaptiveIndexR = (adaptiveIndexR + (1 + (abs(speedR) / 35)) * (speedR / abs(speedR))) % 256;
       CRGBPalette16 *palletR = &forward_pallet;
       if (speedR < 0) {
         palletR = &reverse_pallet;
