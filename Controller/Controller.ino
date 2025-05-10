@@ -1,25 +1,19 @@
+//  MECH202 Group 14 Controller Code (Arduino UNO)
+//  Written by Jasper Bauer-Brown
+//  Disclaimer: Code was built of example controller code
+
 #include <SPI.h>
-#include <nRF24L01.h>  //part of the RF24 library
+#include <nRF24L01.h>
 #include <RF24.h>
 
+//  Debug flag (depracated, but it sounds so professional to have a debug flag)
 const bool debug = false;
 
-// Define NRF24L01 radio object with CE and CSN pins
+//  Radio objects
 RF24 radio(7, 8);  // CE = 7, CSN = 8
-
-// Define the pipe address (must be the same as the receiver)
-// This does NOT need to be changed based on your team number.
 const byte address[6] = "00001";
 
-bool servoDeployed = false;
-int littleButtonState = 0;
-int switchState = 1;
-bool armSwitchState = false;
-bool littleButtonDebounce = false;
-bool bigButtonDebounce = false;
-int pot = 0;
-
-// Define joystick pins
+//  Pin definitions (why arent these #defines idk but I dont want to change them)
 const int RYPin = A3;
 const int RXPin = A2;
 const int LYPin = A1;
@@ -31,8 +25,7 @@ const int switch1Pin = 6;
 const int switch2Pin = 5;
 const int armSwitchPin = 9;
 
-
-// This MUST match the struct in your controller code.
+//  Control struct
 struct controlSchema {
   int driveLeft = 0;
   int driveRight = 0;
@@ -43,37 +36,53 @@ struct controlSchema {
   int pot = 0;
 };
 
-int deadZone = 25;
-
+//  These vars hold states of buttons/switches and previous values.
+//  Helpfull when doing logic so we arent polling pins as much
+bool servoDeployed = false;
+int littleButtonState = 0;
+int switchState = 1;
+bool armSwitchState = false;
+bool littleButtonDebounce = false;
+bool bigButtonDebounce = false;
+int pot = 0;
+//  Joystick positions
 int xJoystickL = 0;
 int yJoystickL = 0;
 int xJoystickR = 0;
 int yJoystickR = 0;
 int ledMode = 0;
 
+//  Deadzone for joysticks
+int deadZone = 25;
+
 void setup() {
   Serial.begin(9600);
+  //  Setup input pins - both buttons and switches are high with
+  //  pull down circuitry. 3 position switch (2 pins) is low, 
+  //  needs to be pulled high internally
   pinMode(littleButtonPin, INPUT);
   pinMode(bigButtonPin, INPUT);
   pinMode(switch1Pin, INPUT_PULLUP);
   pinMode(switch2Pin, INPUT_PULLUP);
   pinMode(armSwitchPin, INPUT);
 
-  // Initialize NRF24L01 module
+  // Initialize radio
   radio.begin();
-  radio.setChannel(28);             // CHANGE THIS TO YOUR TEAM # * 2!!! Team 38 should use channel 76
-  radio.setPALevel(RF24_PA_HIGH);   // Power level (HIGH for better range), switch to low if experiencing soft resets
-  radio.setDataRate(RF24_250KBPS);  // Lower data rate = longer range
-  radio.openWritingPipe(address);   // Set transmitter address
-  radio.stopListening();            // Set as transmitter
+  radio.setChannel(28);
+  radio.setPALevel(RF24_PA_HIGH);
+  radio.setDataRate(RF24_250KBPS);
+  radio.openWritingPipe(address);
+  radio.stopListening();
 }
 
 void loop() {
   controlSchema controls;
+  //  Read little button (led control) and reset debouncer if its low
   littleButtonState = digitalRead(littleButtonPin);
   if (littleButtonState == LOW && littleButtonDebounce == true) {
     littleButtonDebounce = false;
   }
+  //  Read in poth pins from 3 position switch, determine position
   if (digitalRead(switch1Pin) == LOW) {
     switchState = 0;
   } else if (digitalRead(switch2Pin) == LOW) {
@@ -81,12 +90,16 @@ void loop() {
   } else {
     switchState = 1;
   }
+  //  Read in arm switch state
   armSwitchState = digitalRead(armSwitchPin);
+  //  We only want to set servoDepolyed if button is pressed AND switch is armred
   if (armSwitchState == true && digitalRead(bigButtonPin) == HIGH) {
     servoDeployed = true;
   }
   else if (armSwitchState == false) servoDeployed = false;
-
+  //  Read in, map, and deadzone joysticks.
+  //  Prolly should deadzone before mapping but wtv
+  //  Want to spit out -255 to 255, for direct to motors
   xJoystickL = analogRead(LXPin);
   yJoystickL = analogRead(LYPin);
   xJoystickR = analogRead(RXPin);
@@ -99,6 +112,8 @@ void loop() {
   if (abs(yJoystickL) < deadZone) yJoystickL = 0;
   if (abs(xJoystickR) < deadZone) xJoystickR = 0;
   if (abs(yJoystickR) < deadZone) yJoystickR = 0;
+  //  If switch is up or down, drive motors from left stick,
+  //  lift from right. Otherwise tank
   if (switchState == 2 || switchState == 0) {
     controls.lift = yJoystickR;
     controls.driveLeft = constrain(yJoystickL + xJoystickL, -255, 255);
@@ -107,27 +122,33 @@ void loop() {
     controls.driveLeft = yJoystickL;
     controls.driveRight = yJoystickR;
   }
+  //  If pressed and debounce is good, increment light mode
   if (littleButtonState == HIGH && littleButtonDebounce == false) {
     littleButtonDebounce = true;
     ledMode++;
     if (ledMode >= 7) ledMode = 0;
   }
+  //  We really don't need to pass switchState, 
+  //  I don't think we use it for anything on robot end
   controls.switchState = switchState;
   controls.ledMode = ledMode;
+  //  Map and deadzone potentiometer - this gets it to the position
+  //  range we need for the truck servo
   int newPot = map(analogRead(potPin), 0, 1023, 70, 180);
-  if (abs(newPot - pot) > 5) {
+  if (abs(newPot - pot) > 2) {
     pot = newPot;
     controls.pot = newPot;
   }
   else controls.pot = pot;
+  //  This is the "secret weapon" servo
   controls.servoDeployed = servoDeployed;
   bool success = radio.write(&controls, sizeof(controls));
-  Serial.println(switchState);
-
   //if (debug) printStruct(controls);
+  //  Im okay using a blocking delay here since theres nothing outside this loop
   delay(50);
 }
 
+//  I need to update this for the current struct
 // void printStruct(controlSchema controls) {
 //   Serial.print("\n\n\n\n");
 //   Serial.println("DriveL: " + String(controls.driveLeft) + "   DriveR: " + String(controls.driveRight));
